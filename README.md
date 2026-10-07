@@ -1,6 +1,6 @@
 # Baseline Vision Transformer sur ImageNet100
 
-Ce projet entraîne un Vision Transformer sur ImageNet100 afin de fournir une baseline solide pour tester des architectures sans devoir utiliser l'ensemble d'ImageNet-1K.
+Ce projet fournit une baseline Vision Transformer sur ImageNet-100 pour évaluer et comparer différentes architectures à moindre coût par rapport à un entraînement sur ImageNet-1K.
 
 ## Données
 
