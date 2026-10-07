@@ -39,7 +39,7 @@ def get_args_parser():
     parser.add_argument("--checkpoints_interval", type=int, default=50)
     parser.add_argument("--folder_number", type=int, default=1)
 
-    parser.add_argument("--resume_from_checkpoint", type=bool, default=False)
+    parser.add_argument("--resume_from_checkpoint", action="store_true")
     parser.add_argument("--checkpoint_path", type=str, default=None)
     parser.add_argument("--wandb_run_id", type=str, default=None)
 
@@ -70,9 +70,9 @@ def main(args):
         assert os.path.exists(args.checkpoint_path), f"Checkpoint path '{args.checkpoint_path}' does not exist."
         if args.master_process:
             print(f"Loading checkpoint '{args.checkpoint_path}'")
-        start_epoch = checkpoint["epoch"] + 1
         checkpoint = torch.load(args.checkpoint_path, map_location=args.device)
         model.load_state_dict(checkpoint["model_state_dict"])
+        start_epoch = checkpoint["epoch"] + 1
 
     #model = torch.compile(model)
 
@@ -108,7 +108,7 @@ def main(args):
 
     # --- initialize wandb ---
     config = {k: v for k, v in vars(args).items() if not k.startswith("_")}
-    run = wandb.init(
+    wandb.init(
         project="classification-imagenet100-baseline",
         dir="./wandb_logs",
         config=config,
@@ -126,7 +126,7 @@ def main(args):
 
         train_one_epoch(args, train_loader, model, criterion_train, optimizer, args.device, scaler, distributed=args.distributed, master_process=args.master_process)
         lr_scheduler.step()
-        _ = evaluate(val_loader, model, criterion_val, args.device, distributed=args.distributed, master_process=args.master_process, wandb_log=args.master_process)
+        _ = evaluate(val_loader, model, criterion_val, args.device, distributed=args.distributed, master_process=args.master_process, wandb_log=True)
 
         if args.master_process and args.checkpoints_interval is not None and epoch % args.checkpoints_interval == 0:
             model_to_save = model.module if hasattr(model, "module") else model # Unwrap the model if it's wrapped by DDP
