@@ -72,4 +72,4 @@ torchrun --nproc_per_node=2 train.py \
 	--wandb_run_id ID_DE_LA_RUN
 ```
 
-La reprise restaure les poids du modèle, l'état de l'optimiseur, du scheduler et du scaler, puis continue à l'époque suivant celle du checkpoint. W&B doit pouvoir reprendre la run existante correspondante.
+La reprise restaure les poids du modèle, l'état de l'optimizer, du scheduler et du scaler, puis continue à l'epoch suivant celle du checkpoint. W&B doit pouvoir reprendre la run existante correspondante.
