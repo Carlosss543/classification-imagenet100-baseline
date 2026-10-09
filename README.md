@@ -1,6 +1,6 @@
 # Baseline Vision Transformer sur ImageNet100
 
-Ce projet fournit une baseline Vision Transformer sur ImageNet-100 pour évaluer et comparer différentes architectures à moindre coût par rapport à un entraînement sur ImageNet-1K. Le code a été conçu pour être relativement simple et facile à modifier tout en utilisant les diverses accélérations matérielles offertes par PyTorch (float16, fusion de kernels, DistributedDataParallel).
+Ce projet fournit une baseline Vision Transformer sur ImageNet-100 pour évaluer et comparer différentes architectures à moindre coût par rapport à un entraînement sur ImageNet-1K. Le code a été conçu pour être relativement lisible et facile à modifier tout en utilisant les diverses accélérations matérielles offertes par PyTorch (float16, fusion de kernels, DistributedDataParallel).
 
 ## Données
 
