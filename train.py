@@ -47,6 +47,9 @@ def get_args_parser():
 
 
 def main(args):
+    assert torch.cuda.is_available(), "CUDA is not available. Please run on a machine with a compatible NVIDIA GPU."
+
+
     # --- distributed training setup ---
     init_distributed_mode(args)
 
@@ -113,7 +116,7 @@ def main(args):
         dir="./wandb_logs",
         config=config,
         group=f"{args.model}",
-        mode="online" if args.master_process else "disabled",  # online/disabled
+        mode="online" if args.master_process else "disabled",
         id=args.wandb_run_id if args.resume_from_checkpoint else None,
         resume="must" if args.resume_from_checkpoint else False
     )
@@ -141,7 +144,7 @@ def main(args):
             }
             checkpoint_dir = f"./training_checkpoints/checkpoint{args.folder_number}"
             os.makedirs(checkpoint_dir, exist_ok=True)
-            torch.save(checkpoint, f"{checkpoint_dir}/vit_custom_epoch_{epoch}.pth")
+            torch.save(checkpoint, f"{checkpoint_dir}/{args.model}_epoch_{epoch}.pth")
 
     if args.distributed:
         destroy_process_group()

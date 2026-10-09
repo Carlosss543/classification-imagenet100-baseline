@@ -1,10 +1,10 @@
 # Baseline Vision Transformer sur ImageNet100
 
-Ce projet entraîne un Vision Transformer sur ImageNet100 afin de fournir une baseline solide pour tester des architectures sans devoir utiliser l'ensemble d'ImageNet-1K.
+Ce projet entraîne un Vision Transformer sur ImageNet100 afin de fournir une baseline solide pour tester des architectures sans devoir utiliser l'ensemble d'ImageNet-1K. Le code a été conçu pour être relativement simple et facile à modifier tout en utilisant les diverses accélérations matérielles offertes par PyTorch (float16, fusion de kernels, DistributedDataParallel).
 
 ## Données
 
-Le dossier donné avec `--data_dir` doit contenir les répertoires `train` et `val`. Chaque split doit être organisé en sous-dossiers par classe, conformément à `torchvision.datasets.ImageFolder` :
+Le dossier fourni par `--data_dir` doit contenir les répertoires `train` et `val`. Chaque split doit être organisé en sous-dossiers par classe, conformément à `torchvision.datasets.ImageFolder` :
 
 ```text
 imagenet100/
@@ -36,7 +36,7 @@ Pour un seul processus/GPU :
 python train.py --data_dir /chemin/vers/imagenet100
 ```
 
-Le `--batch_size` par défaut (`256`) est la taille globale du lot et est réparti entre les processus. Avec deux GPU, chaque processus traite donc 128 images par lot. `--accumulation_steps` (par défaut `4`) accumule plusieurs lots avant une mise à jour de l'optimiseur. Par exemple, pour un batch_size de 256 et 4 accumulation steps le batch effectif est de 1024.
+Le `--batch_size` par défaut (`256`) est le nombre d'images par forward pass, tous GPU confondus : il est réparti entre les processus (avec deux GPU, chacun traite donc 128 images). `--accumulation_steps` (par défaut `4`) accumule les gradients de plusieurs forward passes avant une mise à jour de l'optimiseur. Le batch effectif, c'est-à-dire le nombre d'images vues par mise à jour, vaut `batch_size × accumulation_steps`, soit 256 × 4 = 1024 par défaut, quel que soit le nombre de GPU.
 
 Les expériences sont envoyées au projet W&B `classification-imagenet100-baseline` et les fichiers locaux de W&B sont enregistrés dans `./wandb_logs`.
 
@@ -47,18 +47,27 @@ Les expériences sont envoyées au projet W&B `classification-imagenet100-baseli
 | `--model` | `vit_s_16` | Architecture : `vit_s_16` ou `vit_t_16`. |
 | `--num_classes` | `100` | Nombre de classes dans le dataset. |
 | `--num_epochs` | `300` | Nombre total d'epochs. |
-| `--batch_size` | `256` | Taille globale du lot, avant accumulation. |
-| `--accumulation_steps` | `4` | Nombre de lots accumulés par mise à jour. |
-| `--lr` | `0.001` | Taux d'apprentissage. |
+| `--batch_size` | `256` | Nombre d'images par forward pass, tous GPU confondus. |
+| `--accumulation_steps` | `4` | Nombre de forward passes accumulés par mise à jour. |
+| `--lr` | `0.001` | Learning rate. |
 | `--weight_decay` | `0.05` | Weight decay d'AdamW. |
 | `--crop_size` | `224` | Taille carrée des images en entrée du modèle. |
 | `--resize_size` | `256` | Taille de redimensionnement avant le recadrage de validation. |
 | `--mixup_alpha` | `0.2` | Paramètre alpha de MixUp; une valeur nulle désactive MixUp. |
 | `--cutmix_alpha` | `1.0` | Paramètre alpha de CutMix; une valeur nulle désactive CutMix. |
-| `--checkpoints_interval` | `50` | Sauvegarde un checkpoint toutes les N époques. |
+| `--checkpoints_interval` | `50` | Sauvegarde un checkpoint toutes les N epochs. |
 | `--folder_number` | `1` | Numéro du sous-dossier de checkpoints. |
 
-Le script applique un warmup du taux d'apprentissage, puis une décroissance cosinus. Les images d'entraînement sont augmentées aléatoirement; la validation utilise redimensionnement et recadrage central.
+Le script applique un warmup du learning rate, puis une décroissance cosinus. Les images d'entraînement sont augmentées aléatoirement; la validation utilise redimensionnement et recadrage central.
+
+## Résultats
+
+En entraînant avec les paramètres par défaut, on obtient les accuracies suivantes.
+
+| Modèle     | Accuracy Top-1 | Accuracy Top-5 |
+| ---------- | -------------- | -------------- |
+| `vit_s_16` | 79.8%          | 92.5%          |
+| `vit_t_16` | 78.8%          | 92.7%          |
 
 ## Checkpoints et reprise
 
@@ -72,4 +81,4 @@ torchrun --nproc_per_node=2 train.py \
 	--wandb_run_id ID_DE_LA_RUN
 ```
 
-La reprise restaure les poids du modèle, l'état de l'optimiseur, du scheduler et du scaler, puis continue à l'époque suivant celle du checkpoint. W&B doit pouvoir reprendre la run existante correspondante.
+La reprise restaure les poids du modèle, l'état de l'optimiseur, du scheduler et du scaler, puis continue à l'epoch suivant celui du checkpoint. W&B doit pouvoir reprendre la run existante correspondante.

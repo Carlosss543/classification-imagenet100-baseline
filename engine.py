@@ -1,5 +1,6 @@
 import torch
 import torch.distributed as dist
+from contextlib import nullcontext
 from tqdm import tqdm
 import wandb
 
@@ -13,18 +14,15 @@ def train_one_epoch(args, train_loader, model, criterion, optimizer, device, sca
     for i, (imgs, labels) in enumerate(tqdm(train_loader, total=len(train_loader), desc="Training", disable=not master_process, leave=False)):
         imgs, labels = imgs.to(device), labels.to(device)
 
-        with torch.amp.autocast('cuda'):
-            output = model(imgs)
-            loss = criterion(output, labels)
-        loss = loss / args.accumulation_steps # normalize loss to account for gradient accumulation
-
         is_accumulation_end = (i+1) % args.accumulation_steps == 0 or (i+1) == len(train_loader)
+        sync_context = model.no_sync() if distributed and not is_accumulation_end else nullcontext()
 
-        if distributed and not is_accumulation_end:
-            with model.no_sync():
-                scaler.scale(loss).backward() # no sync, accumulate gradients
-        else:
-            scaler.scale(loss).backward() # sync, accumulate gradients
+        with sync_context:
+            with torch.amp.autocast('cuda'):
+                output = model(imgs)
+                loss = criterion(output, labels)
+            loss = loss / args.accumulation_steps # normalize loss to account for gradient accumulation
+            scaler.scale(loss).backward()
 
         if is_accumulation_end:
             if args.clip_grad_norm is not None:
