@@ -1,6 +1,6 @@
 # Baseline Vision Transformer sur ImageNet100
 
-Ce projet entraîne un Vision Transformer sur ImageNet100 afin de fournir une baseline solide pour tester des architectures sans devoir utiliser l'ensemble d'ImageNet-1K. Le code a été conçu pour être relativement simple et facile à modifier tout en utilisant les diverses accélérations matérielles offertes par PyTorch (float16, fusion de kernels, DistributedDataParallel).
+Ce projet fournit une baseline Vision Transformer sur ImageNet-100 pour évaluer et comparer différentes architectures à moindre coût par rapport à un entraînement sur ImageNet-1K. Le code a été conçu pour être relativement simple et facile à modifier tout en utilisant les diverses accélérations matérielles offertes par PyTorch (float16, fusion de kernels, DistributedDataParallel).
 
 ## Données
 
@@ -81,4 +81,4 @@ torchrun --nproc_per_node=2 train.py \
 	--wandb_run_id ID_DE_LA_RUN
 ```
 
-La reprise restaure les poids du modèle, l'état de l'optimiseur, du scheduler et du scaler, puis continue à l'epoch suivant celui du checkpoint. W&B doit pouvoir reprendre la run existante correspondante.
+La reprise restaure les poids du modèle, l'état de l'optimizer, du scheduler et du scaler, puis continue à l'epoch suivant celle du checkpoint. W&B doit pouvoir reprendre la run existante correspondante.
