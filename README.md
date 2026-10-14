@@ -1,10 +1,10 @@
-# Baseline Vision Transformer sur ImageNet100
+# Vision Transformer Baseline on ImageNet100
 
-Ce projet fournit une baseline Vision Transformer sur ImageNet-100 pour évaluer et comparer différentes architectures à moindre coût par rapport à un entraînement sur ImageNet-1K. Le code a été conçu pour être relativement lisible et facile à modifier tout en utilisant les diverses accélérations matérielles offertes par PyTorch (float16, fusion de kernels, DistributedDataParallel).
+This project provides a Vision Transformer baseline on ImageNet-100 for evaluating and comparing different architectures at a lower cost than training on ImageNet-1K. The code is designed to be relatively easy to read and modify while taking advantage of the hardware acceleration features provided by PyTorch (float16, kernel fusion, DistributedDataParallel).
 
-## Données
+## Data
 
-Le dossier fourni par `--data_dir` doit contenir les répertoires `train` et `val`. Chaque split doit être organisé en sous-dossiers par classe, conformément à `torchvision.datasets.ImageFolder` :
+The directory passed to `--data_dir` must contain the `train` and `val` directories. Each split must be organized into class subdirectories, as expected by `torchvision.datasets.ImageFolder`:
 
 ```text
 imagenet100/
@@ -17,68 +17,68 @@ imagenet100/
     |-- class_001/
     |   `-- image.jpg
     `-- class_002/
-            `-- image.jpg
+        `-- image.jpg
 ```
 
-Les noms des dossiers de classes doivent correspondre entre `train` et `val`. Avec la configuration par défaut, le jeu de données doit contenir 100 classes.
+The class directory names must match between `train` and `val`. With the default configuration, the dataset must contain 100 classes.
 
-## Lancement
+## Getting Started
 
-Depuis la racine du dépôt, lancez par exemple l'entraînement sur deux GPU :
+From the repository root, for example, start training on two GPUs with:
 
 ```bash
-torchrun --nproc_per_node=2 train.py --data_dir /chemin/vers/imagenet100
+torchrun --nproc_per_node=2 train.py --data_dir /path/to/imagenet100
 ```
 
-Pour un seul processus/GPU :
+For a single process/GPU:
 
 ```bash
-python train.py --data_dir /chemin/vers/imagenet100
+python train.py --data_dir /path/to/imagenet100
 ```
 
-Le `--batch_size` par défaut (`256`) est le nombre d'images par forward pass, tous GPU confondus : il est réparti entre les processus (avec deux GPU, chacun traite donc 128 images). `--accumulation_steps` (par défaut `4`) accumule les gradients de plusieurs forward passes avant une mise à jour de l'optimiseur. Le batch effectif, c'est-à-dire le nombre d'images vues par mise à jour, vaut `batch_size × accumulation_steps`, soit 256 × 4 = 1024 par défaut, quel que soit le nombre de GPU.
+The default `--batch_size` (`256`) is the number of images per forward pass across all GPUs: it is split among the processes (with two GPUs, each therefore processes 128 images). `--accumulation_steps` (default `4`) accumulates gradients across multiple forward passes before an optimizer update. The effective batch size, i.e. the number of images processed per update, is `batch_size × accumulation_steps`, or 256 × 4 = 1024 by default, regardless of the number of GPUs.
 
-Les expériences sont envoyées au projet W&B `classification-imagenet100-baseline` et les fichiers locaux de W&B sont enregistrés dans `./wandb_logs`.
+Experiments are logged to the W&B project `classification-imagenet100-baseline`, and local W&B files are stored in `./wandb_logs`.
 
-## Options principales
+## Main Options
 
-| Option | Défaut | Description |
+| Option | Default | Description |
 | --- | --- | --- |
-| `--model` | `vit_s_16` | Architecture : `vit_s_16` ou `vit_t_16`. |
-| `--num_classes` | `100` | Nombre de classes dans le dataset. |
-| `--num_epochs` | `300` | Nombre total d'epochs. |
-| `--batch_size` | `256` | Nombre d'images par forward pass, tous GPU confondus. |
-| `--accumulation_steps` | `4` | Nombre de forward passes accumulés par mise à jour. |
+| `--model` | `vit_s_16` | Architecture: `vit_s_16` or `vit_t_16`. |
+| `--num_classes` | `100` | Number of classes in the dataset. |
+| `--num_epochs` | `300` | Total number of epochs. |
+| `--batch_size` | `256` | Number of images per forward pass across all GPUs. |
+| `--accumulation_steps` | `4` | Number of forward passes accumulated per update. |
 | `--lr` | `0.001` | Learning rate. |
-| `--weight_decay` | `0.05` | Weight decay d'AdamW. |
-| `--crop_size` | `224` | Taille carrée des images en entrée du modèle. |
-| `--resize_size` | `256` | Taille de redimensionnement avant le recadrage de validation. |
-| `--mixup_alpha` | `0.2` | Paramètre alpha de MixUp; une valeur nulle désactive MixUp. |
-| `--cutmix_alpha` | `1.0` | Paramètre alpha de CutMix; une valeur nulle désactive CutMix. |
-| `--checkpoints_interval` | `50` | Sauvegarde un checkpoint toutes les N epochs. |
-| `--folder_number` | `1` | Numéro du sous-dossier de checkpoints. |
+| `--weight_decay` | `0.05` | AdamW weight decay. |
+| `--crop_size` | `224` | Square input image size for the model. |
+| `--resize_size` | `256` | Resize dimension before the validation center crop. |
+| `--mixup_alpha` | `0.2` | MixUp alpha parameter; set to zero to disable MixUp. |
+| `--cutmix_alpha` | `1.0` | CutMix alpha parameter; set to zero to disable CutMix. |
+| `--checkpoints_interval` | `50` | Save a checkpoint every N epochs. |
+| `--folder_number` | `1` | Checkpoint subdirectory number. |
 
-Le script applique un warmup du learning rate, puis une décroissance cosinus. Les images d'entraînement sont augmentées aléatoirement; la validation utilise redimensionnement et recadrage central.
+The script applies a learning-rate warmup followed by cosine decay. Training images are augmented randomly; validation uses resizing and a center crop.
 
-## Résultats
+## Results
 
-En entraînant avec les paramètres par défaut, on obtient les accuracies suivantes.
+Training with the default parameters produces the following accuracies.
 
-| Modèle     | Accuracy Top-1 | Accuracy Top-5 |
+| Model      | Top-1 Accuracy | Top-5 Accuracy |
 | ---------- | -------------- | -------------- |
 | `vit_s_16` | 79.8%          | 92.5%          |
 | `vit_t_16` | 78.8%          | 92.7%          |
 
-## Checkpoints et reprise
+## Checkpoints and Resuming
 
-Les checkpoints sont écrits toutes les `--checkpoints_interval` epochs dans `training_checkpoints/checkpoint<folder_number>/`. Pour reprendre, fournissez le chemin du checkpoint, activez `--resume_from_checkpoint` et donnez l'identifiant de la run W&B à reprendre :
+Checkpoints are saved every `--checkpoints_interval` epochs in `training_checkpoints/checkpoint<folder_number>/`. To resume training, provide the checkpoint path, enable `--resume_from_checkpoint`, and specify the ID of the W&B run to resume:
 
 ```bash
 torchrun --nproc_per_node=2 train.py \
-	--data_dir /chemin/vers/imagenet100 \
+	--data_dir /path/to/imagenet100 \
 	--resume_from_checkpoint \
 	--checkpoint_path training_checkpoints/checkpoint1/vit_custom_epoch_50.pth \
-	--wandb_run_id ID_DE_LA_RUN
+	--wandb_run_id RUN_ID
 ```
 
-La reprise restaure les poids du modèle, l'état de l'optimizer, du scheduler et du scaler, puis continue à l'epoch suivant celle du checkpoint. W&B doit pouvoir reprendre la run existante correspondante.
+Resuming restores the model weights and the states of the optimizer, scheduler, and scaler, then continues from the epoch after the checkpoint. W&B must be able to resume the corresponding existing run.
