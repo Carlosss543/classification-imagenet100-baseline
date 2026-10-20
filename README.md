@@ -27,13 +27,13 @@ The class directory names must match between `train` and `val`. With the default
 From the repository root, for example, start training on two GPUs with:
 
 ```bash
-torchrun --nproc_per_node=2 train.py --data_dir /path/to/imagenet100
+torchrun --nproc_per_node=2 train.py --data_dir /path/to/imagenet100 --output_dir ./checkpoints
 ```
 
 For a single process/GPU:
 
 ```bash
-python train.py --data_dir /path/to/imagenet100
+python train.py --data_dir /path/to/imagenet100 --output_dir ./checkpoints
 ```
 
 The default `--batch_size` (`256`) is the number of images per forward pass across all GPUs: it is split among the processes (with two GPUs, each therefore processes 128 images). `--accumulation_steps` (default `4`) accumulates gradients across multiple forward passes before an optimizer update. The effective batch size, i.e. the number of images processed per update, is `batch_size × accumulation_steps`, or 256 × 4 = 1024 by default, regardless of the number of GPUs.
@@ -44,19 +44,25 @@ Experiments are logged to the W&B project `classification-imagenet100-baseline`,
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--model` | `vit_s_16` | Architecture: `vit_s_16` or `vit_t_16`. |
-| `--num_classes` | `100` | Number of classes in the dataset. |
-| `--num_epochs` | `300` | Total number of epochs. |
+| `--data_dir` | (required) | Dataset root containing the `train/` and `val/` directories. |
+| `--output_dir` | (required) | Directory where training checkpoints are saved. |
+| `--num_classes` | `100` | Number of dataset classes and output classes. |
+| `--resize_size` | `256` | Validation resize dimension before the center crop. |
+| `--crop_size` | `224` | Square crop and model input size. |
+| `--num_epochs` | `300` | Total number of training epochs. |
 | `--batch_size` | `256` | Number of images per forward pass across all GPUs. |
-| `--accumulation_steps` | `4` | Number of forward passes accumulated per update. |
+| `--accumulation_steps` | `4` | Number of forward passes accumulated per optimizer update. |
 | `--lr` | `0.001` | Learning rate. |
+| `--lr_warmup_epochs` | `5` | Number of initial linear learning-rate warmup epochs. |
+| `--lr_warmup_decay` | `0.033` | Warmup starting learning rate as a fraction of `--lr`. |
 | `--weight_decay` | `0.05` | AdamW weight decay. |
-| `--crop_size` | `224` | Square input image size for the model. |
-| `--resize_size` | `256` | Resize dimension before the validation center crop. |
-| `--mixup_alpha` | `0.2` | MixUp alpha parameter; set to zero to disable MixUp. |
-| `--cutmix_alpha` | `1.0` | CutMix alpha parameter; set to zero to disable CutMix. |
-| `--checkpoints_interval` | `50` | Save a checkpoint every N epochs. |
-| `--folder_number` | `1` | Checkpoint subdirectory number. |
+| `--label_smoothing` | `0.1` | Label smoothing used for the training loss. |
+| `--mixup_alpha` | `0.2` | MixUp alpha; set to `0` to disable MixUp. |
+| `--cutmix_alpha` | `1.0` | CutMix alpha; set to `0` to disable CutMix. |
+| `--clip_grad_norm` | `1.0` | Gradient clipping max norm. |
+| `--model` | `vit_s_16` | Architecture: `vit_s_16` or `vit_t_16`. |
+| `--resume_from_checkpoint` | off | Resume training from a checkpoint. |
+| `--wandb_run_id` | (unset) | W&B run ID; required when resuming. |
 
 The script applies a learning-rate warmup followed by cosine decay. Training images are augmented randomly; validation uses resizing and a center crop.
 
@@ -71,14 +77,14 @@ Training with the default parameters produces the following accuracies.
 
 ## Checkpoints and Resuming
 
-Checkpoints are saved every `--checkpoints_interval` epochs in `training_checkpoints/checkpoint<folder_number>/`. To resume training, provide the checkpoint path, enable `--resume_from_checkpoint`, and specify the ID of the W&B run to resume:
+Checkpoints are saved every 10 epochs in `<output_dir>/<wandb_run_id>.pt`. To resume training, enable `--resume_from_checkpoint` and specify the ID of the W&B run to resume:
 
 ```bash
 torchrun --nproc_per_node=2 train.py \
-	--data_dir /path/to/imagenet100 \
-	--resume_from_checkpoint \
-	--checkpoint_path training_checkpoints/checkpoint1/vit_custom_epoch_50.pth \
-	--wandb_run_id RUN_ID
+  --data_dir /path/to/imagenet100 \
+  --output_dir ./checkpoints \
+  --resume_from_checkpoint \
+  --wandb_run_id RUN_ID
 ```
 
 Resuming restores the model weights and the states of the optimizer, scheduler, and scaler, then continues from the epoch after the checkpoint. W&B must be able to resume the corresponding existing run.

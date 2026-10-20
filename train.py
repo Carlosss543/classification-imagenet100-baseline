@@ -15,6 +15,8 @@ def get_args_parser():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--data_dir", type=str, required=True)
+    parser.add_argument("--output_dir", type=str, required=True)
+
     parser.add_argument("--num_classes", type=int, default=100)
 
     parser.add_argument("--resize_size", type=int, default=256)
@@ -36,11 +38,7 @@ def get_args_parser():
 
     parser.add_argument("--model", type=str, default="vit_s_16")
 
-    parser.add_argument("--checkpoints_interval", type=int, default=50)
-    parser.add_argument("--folder_number", type=int, default=1)
-
     parser.add_argument("--resume_from_checkpoint", action="store_true")
-    parser.add_argument("--checkpoint_path", type=str, default=None)
     parser.add_argument("--wandb_run_id", type=str, default=None)
 
     return parser
@@ -61,23 +59,13 @@ def main(args):
 
     # --- load model ---
     if args.model == "vit_t_16":
-        model = vit_t_16(num_classes=args.num_classes, image_size=args.crop_size).to(args.device)
+        base_model = vit_t_16(num_classes=args.num_classes, image_size=args.crop_size).to(args.device)
     elif args.model == "vit_s_16":
-        model = vit_s_16(num_classes=args.num_classes, image_size=args.crop_size).to(args.device)
+        base_model = vit_s_16(num_classes=args.num_classes, image_size=args.crop_size).to(args.device)
     else:
         raise ValueError(f"Unknown model type '{args.model}'")
 
-    start_epoch = 1
-
-    if args.resume_from_checkpoint:
-        assert os.path.exists(args.checkpoint_path), f"Checkpoint path '{args.checkpoint_path}' does not exist."
-        if args.master_process:
-            print(f"Loading checkpoint '{args.checkpoint_path}'")
-        checkpoint = torch.load(args.checkpoint_path, map_location=args.device)
-        model.load_state_dict(checkpoint["model_state_dict"])
-        start_epoch = checkpoint["epoch"] + 1
-
-    #model = torch.compile(model)
+    model = torch.compile(base_model)
 
     if args.distributed:
         model = DDP(model, device_ids=[args.ddp_local_rank])
@@ -102,24 +90,39 @@ def main(args):
 
 
     # --- resume optimizer, lr scheduler, and scaler states if resuming from checkpoint ---
+    start_epoch = 1
+
     if args.resume_from_checkpoint:
+        assert args.wandb_run_id is not None, "wandb_run_id must be specified when resuming from checkpoint."
+        assert os.path.exists(f"{args.output_dir}/{args.wandb_run_id}.pt"), f"Checkpoint path '{args.output_dir}/{args.wandb_run_id}.pt' does not exist."
+
+        checkpoint = torch.load(f"{args.output_dir}/{args.wandb_run_id}.pt", map_location=args.device)
+        base_model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
         scaler.load_state_dict(checkpoint["scaler_state_dict"])
+        start_epoch = checkpoint["epoch"] + 1
         del checkpoint # free up memory
+
+        if args.master_process:
+            print(f"Resumed training from checkpoint: {args.output_dir}/{args.wandb_run_id}.pt")
 
 
     # --- initialize wandb ---
-    config = {k: v for k, v in vars(args).items() if not k.startswith("_")}
-    wandb.init(
-        project="classification-imagenet100-baseline",
-        dir="./wandb_logs",
-        config=config,
-        group=f"{args.model}",
-        mode="online" if args.master_process else "disabled",
-        id=args.wandb_run_id if args.resume_from_checkpoint else None,
-        resume="must" if args.resume_from_checkpoint else False
-    )
+    if args.master_process:
+        config = {k: v for k, v in vars(args).items() if not k.startswith("_")}
+        run = wandb.init(
+            project="classification-imagenet100-baseline",
+            dir="./wandb_logs",
+            config=config,
+            group=f"{args.model}",
+            mode="online",
+            id=args.wandb_run_id if args.resume_from_checkpoint else None,
+            resume="must" if args.resume_from_checkpoint else False
+        )
+        wandb.define_metric("epoch")
+        for metric in ("train_loss", "lr", "val_loss", "val_acc", "val_acc_top5"):
+            wandb.define_metric(metric, step_metric="epoch")
 
 
     # --- training loop ---
@@ -127,11 +130,11 @@ def main(args):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
 
-        train_one_epoch(args, train_loader, model, criterion_train, optimizer, args.device, scaler, distributed=args.distributed, master_process=args.master_process)
+        train_one_epoch(args, train_loader, model, criterion_train, optimizer, scaler, epoch)
         lr_scheduler.step()
-        _ = evaluate(val_loader, model, criterion_val, args.device, distributed=args.distributed, master_process=args.master_process, wandb_log=True)
+        _ = evaluate(args, val_loader, model, criterion_val, epoch, wandb_log=True)
 
-        if args.master_process and args.checkpoints_interval is not None and epoch % args.checkpoints_interval == 0:
+        if args.master_process and epoch % 10 == 0:
             model_to_save = model.module if hasattr(model, "module") else model # Unwrap the model if it's wrapped by DDP
             model_to_save = model_to_save._orig_mod if hasattr(model_to_save, "_orig_mod") else model_to_save # Unwrap the model if it's wrapped by torch.compile
             checkpoint = {
@@ -142,9 +145,8 @@ def main(args):
                 "scaler_state_dict": scaler.state_dict(),
                 "args": config
             }
-            checkpoint_dir = f"./training_checkpoints/checkpoint{args.folder_number}"
-            os.makedirs(checkpoint_dir, exist_ok=True)
-            torch.save(checkpoint, f"{checkpoint_dir}/{args.model}_epoch_{epoch}.pth")
+            os.makedirs(args.output_dir, exist_ok=True)
+            torch.save(checkpoint, f"{args.output_dir}/{run.id}.pt")
 
     if args.distributed:
         destroy_process_group()
