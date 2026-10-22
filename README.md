@@ -72,8 +72,8 @@ Training with the default parameters produces the following accuracies.
 
 | Model      | Top-1 Accuracy | Top-5 Accuracy |
 | ---------- | -------------- | -------------- |
-| `vit_s_16` | 79.8%          | 92.5%          |
-| `vit_t_16` | 78.8%          | 92.7%          |
+| `vit_s_16` | 80.36%          | 92.90%          |
+| `vit_t_16` | 78.98%          | 93.50%          |
 
 ## Checkpoints and Resuming
 

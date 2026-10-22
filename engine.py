@@ -45,11 +45,11 @@ def train_one_epoch(args, train_loader, model, criterion, optimizer, scaler, epo
 
     avg_loss = total_loss.item() / total_samples.item()
 
-    current_lr = optimizer.param_groups[0]['lr']
     if args.master_process:
-        wandb.log({"epoch": epoch, "train_loss": avg_loss, "lr": current_lr})
+        wandb.log({"epoch": epoch, "train_loss": avg_loss, "lr": optimizer.param_groups[0]['lr']})
 
 
+@torch.no_grad()
 def evaluate(args, val_loader, model, criterion, epoch, wandb_log=True):
     model.eval()
 
@@ -58,18 +58,17 @@ def evaluate(args, val_loader, model, criterion, epoch, wandb_log=True):
     total_correct_top5 = torch.tensor(0, device=args.device)
     total_samples = torch.tensor(0, device=args.device)
 
-    with torch.no_grad():
-        for imgs, labels in tqdm(val_loader, total=len(val_loader), desc="Validation", disable=not args.master_process, leave=False):
-            imgs, labels = imgs.to(args.device), labels.to(args.device)
+    for imgs, labels in tqdm(val_loader, total=len(val_loader), desc="Validation", disable=not args.master_process, leave=False):
+        imgs, labels = imgs.to(args.device), labels.to(args.device)
 
-            with torch.amp.autocast('cuda'):
-                output = model(imgs)
-                loss = criterion(output, labels)
+        with torch.amp.autocast('cuda'):
+            output = model(imgs)
+            loss = criterion(output, labels)
 
-            total_loss += loss * imgs.size(0)
-            total_correct += (torch.argmax(output, dim=1) == labels).sum()
-            total_correct_top5 += (torch.topk(output, k=5, dim=1).indices == labels.unsqueeze(1)).any(dim=1).sum()
-            total_samples += labels.size(0)
+        total_loss += loss * imgs.size(0)
+        total_correct += (torch.argmax(output, dim=1) == labels).sum()
+        total_correct_top5 += (torch.topk(output, k=5, dim=1).indices == labels.unsqueeze(1)).any(dim=1).sum()
+        total_samples += labels.size(0)
 
     if args.distributed:
         dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
