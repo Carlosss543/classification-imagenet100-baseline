@@ -2,6 +2,20 @@
 
 This project provides a Vision Transformer baseline on ImageNet-100 for evaluating and comparing different architectures at a lower cost than training on ImageNet-1K. The code is designed to be relatively easy to read and modify while taking advantage of the hardware acceleration features provided by PyTorch (float16, kernel fusion, DistributedDataParallel).
 
+## Results
+
+Training with the default parameters yields the following accuracies.
+
+| Model      | Top-1 Accuracy | Top-5 Accuracy |
+| ---------- | -------------- | -------------- |
+| `vit_s_16` | 80.36%          | 92.90%          |
+| `vit_t_16` | 78.98%          | 93.50%          |
+
+## Requirements
+
+- CUDA-compatible NVIDIA GPU
+- Weights & Biases account
+
 ## Data
 
 The directory passed to `--data_dir` must contain the `train` and `val` directories. Each split must be organized into class subdirectories, as expected by `torchvision.datasets.ImageFolder`:
@@ -22,7 +36,7 @@ imagenet100/
 
 The class directory names must match between `train` and `val`. With the default configuration, the dataset must contain 100 classes.
 
-## Getting Started
+## Training
 
 From the repository root, for example, start training on two GPUs with:
 
@@ -66,15 +80,6 @@ Experiments are logged to the W&B project `classification-imagenet100-baseline`,
 
 The script applies a learning-rate warmup followed by cosine decay. Training images are augmented randomly; validation uses resizing and a center crop.
 
-## Results
-
-Training with the default parameters produces the following accuracies.
-
-| Model      | Top-1 Accuracy | Top-5 Accuracy |
-| ---------- | -------------- | -------------- |
-| `vit_s_16` | 80.36%          | 92.90%          |
-| `vit_t_16` | 78.98%          | 93.50%          |
-
 ## Checkpoints and Resuming
 
 Checkpoints are saved every 10 epochs in `<output_dir>/<wandb_run_id>.pt`. To resume training, enable `--resume_from_checkpoint` and specify the ID of the W&B run to resume:
@@ -88,3 +93,11 @@ torchrun --nproc_per_node=2 train.py \
 ```
 
 Resuming restores the model weights and the states of the optimizer, scheduler, and scaler, then continues from the epoch after the checkpoint. W&B must be able to resume the corresponding existing run.
+
+## Project structure
+
+- `data.py`: ImageNet-100 dataset loading, preprocessing, and data augmentation
+- `mixup_cutmix.py`: MixUp and CutMix batch augmentations
+- `train.py` / `engine.py`: training setup, training and validation loops, and checkpointing
+- `utils.py`: distributed training initialization
+- `models.py`: Vision Transformer architectures (`vit_s_16` and `vit_t_16`)
